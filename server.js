@@ -7,7 +7,9 @@ const io = new Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true
 });
 const port = 8080;
 
@@ -172,6 +174,15 @@ app.delete('/api/device/delete-log', async (req, res) => {
 io.on('connection', (socket) => {
     console.log('📱 Android device connected:', socket.id);
     console.log('📊 Total connected clients:', connectedClients.size + 1);
+    console.log('🔍 Connection details:', {
+        id: socket.id,
+        address: socket.handshake.address,
+        headers: socket.handshake.headers,
+        query: socket.handshake.query
+    });
+    
+    // Test connection immediately
+    socket.emit('test-connection', { message: 'Server is working!' });
     
     // Get device info from connection - try multiple sources for real IP
     let clientIP = socket.handshake.address || socket.conn.remoteAddress || 'Unknown';
@@ -622,7 +633,7 @@ app.post('/api/reconnect', async (req, res) => {
 
 // Serve the main page
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
+    res.sendFile(__dirname + '/public/index.html');
 });
 
 // Server status endpoint
